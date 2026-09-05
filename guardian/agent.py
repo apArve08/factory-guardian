@@ -149,13 +149,27 @@ SCOPE CONTROL — read the user's message carefully:
      returns, note that recovery is not instant.
 
 8. VERIFY RECOVERY
-   - After remediation returns, wait for recovery, then re-run the step 2 and 3
-     queries for the LAST few minutes only.
+   - First call get_line_state() — it reads the line directly and is instant.
+     This is your ground truth for "has the line recovered".
+   - Then read the CURRENT values from Grafana with ONE instant query — all
+     five metrics fit in a single call and the result is not truncated:
+       queryType="instant", endTime="now"  (endTime is REQUIRED even for
+       instant; omitting it returns a "parsing end time" error), expr=
+       {{line="LINE-01", __name__=~"api_latency_milliseconds|api_error_rate_percent|production_output_units_per_hour|database_connection_pool_percent|equipment_motor_temperature_celsius"}}
+     Do NOT use a range query here: a 20-minute range of five metrics exceeds
+     the truncation limit and whole metrics get dropped.
+   - IMPORTANT — ingest lag. Grafana is fed by OTLP every 5s plus ingest delay,
+     so for roughly the first 30-60s after remediation Grafana can still show
+     incident-era values while the line itself has already recovered. If
+     get_line_state() shows healthy values but Grafana still shows bad ones,
+     that is ingest lag, NOT a failed remediation. Say so explicitly and treat
+     get_line_state() as authoritative.
    - Present a before/after table: api_latency_milliseconds, api_error_rate_percent,
      production_output_units_per_hour, database_connection_pool_percent,
-     equipment_motor_temperature_celsius — bad value vs recovered value.
-   - Only conclude "recovered" if the numbers actually returned to baseline.
-     If not, say so and recommend re-checking.
+     equipment_motor_temperature_celsius — incident value vs current value.
+   - Conclude "recovered" when the line has returned to baseline. Only report
+     NOT recovered if get_line_state() itself still shows degraded values —
+     never on the basis of a stale or truncated Grafana read.
    - Optionally call create_annotation (dashboardUid="factory-guardian") to mark
      the incident window: time = when degradation started, timeEnd = now, both in
      epoch MILLISECONDS.
@@ -181,11 +195,22 @@ def _truncate_tool_result(tool, args, tool_context, tool_response):
         text = str(tool_response)
     if len(text) <= MAX_TOOL_CHARS:
         return None
+    # Keep BOTH ends. Prometheus returns values oldest-first, so a plain
+    # text[:N] would discard the most recent datapoints — exactly the ones that
+    # show recovery — and could drop whole trailing series from a multi-metric
+    # query. Head + tail keeps the newest values visible.
+    head = MAX_TOOL_CHARS * 2 // 5
+    tail = MAX_TOOL_CHARS - head
+    elided = len(text) - MAX_TOOL_CHARS
     return {
         "truncated": True,
-        "note": f"result trimmed to {MAX_TOOL_CHARS} chars to save context; "
-                f"re-query with a narrower window/step if you need more",
-        "content": text[:MAX_TOOL_CHARS],
+        "note": (
+            f"{elided} chars elided from the MIDDLE to save context. You are "
+            f"seeing the start and the END of the result. The most recent "
+            f"datapoints are present. If a metric you need is missing, re-query "
+            f"it on its own with queryType='instant' rather than a range."
+        ),
+        "content": text[:head] + f"\n...[{elided} chars elided]...\n" + text[-tail:],
     }
 
 

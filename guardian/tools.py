@@ -81,7 +81,9 @@ def submit_report(
         before: Metric name -> value at the worst point of the incident, e.g.
             {"api_latency_milliseconds": 6849, "api_error_rate_percent": 14.7}.
         after: The same metric names -> value after recovery.
-        recovered: True only if the after values actually returned to baseline.
+        recovered: True if the LINE has returned to baseline (per
+            get_line_state, which is instant). Do not set this False merely
+            because Grafana still shows stale values — that is ingest lag.
 
     Returns:
         Acknowledgement that the report was filed.

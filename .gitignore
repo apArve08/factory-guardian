@@ -1,2 +1,7 @@
 .venv/
 .env
+__pycache__/
+*.pyc
+.adk/
+guardian/.adk/
+.DS_Store

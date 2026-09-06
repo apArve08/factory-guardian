@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Factory Guardian — Interactive Demo</title>
+<meta name="description" content="An interactive walkthrough of Factory Guardian, an AI incident-investigation agent for smart manufacturing." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d12;
+    --panel:#12151d;
+    --panel-2:#161a24;
+    --border:#232838;
+    --text:#e8eaed;
+    --muted:#8b93a1;
+    --ok:#4ec98f;
+    --ok-bg:#16202b;
+    --warn:#f0b93b;
+    --warn-bg:#3d2a0a;
+    --danger:#f16a6a;
+    --danger-bg:#3b1414;
+    --info:#5b9bff;
+    --info-bg:#16202b;
+    --radius:8px;
+    --sans: Inter, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+  }
+  a{color:inherit;}
+  button{
+    font-family:var(--sans);
+    font-size:13px;
+    font-weight:600;
+    color:var(--text);
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  button:hover:not(:disabled){border-color:#3a4557;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button.primary{background:var(--info);border-color:var(--info);color:#08101f;}
+  button.primary:hover:not(:disabled){filter:brightness(1.08);}
+  button.approve{background:var(--ok);border-color:var(--ok);color:#06180f;}
+  button.reject{background:transparent;border-color:var(--danger);color:var(--danger);}
+  button:focus-visible, a:focus-visible, input:focus-visible{
+    outline:2px solid var(--info); outline-offset:2px;
+  }
+
+  /* ---- top banner ---- */
+  .banner{
+    background:var(--panel-2);
+    border-bottom:1px solid var(--border);
+    padding:10px 20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 16px;
+    align-items:center;
+    justify-content:space-between;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .banner strong{color:var(--text);}
+  .banner .src-link{
+    color:var(--info);
+    text-decoration:none;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .banner .src-link:hover{text-decoration:underline;}
+
+  /* ---- layout ---- */
+  .layout{
+    display:grid;
+    grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+    height:calc(100vh - 41px);
+  }
+  @media (max-width: 900px){
+    .layout{grid-template-columns:1fr; height:auto;}
+    .pane{height:auto;}
+    .pane-agent{border-top:1px solid var(--border);}
+  }
+
+  .pane{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    border-right:1px solid var(--border);
+  }
+  .pane-agent{border-right:none;}
+
+  .pane-header{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 18px;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-bottom:1px solid var(--border);
+    background:var(--bg);
+    position:sticky;
+    top:0;
+    z-index:5;
+  }
+  .pane-header h1{
+    font-size:16px;
+    font-weight:700;
+    margin:0;
+  }
+  .pane-header h1 .sep{color:var(--muted); font-weight:400; margin:0 4px;}
+  .status-group{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .pill{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.02em;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid transparent;
+  }
+  .pill-ok{background:var(--ok-bg); color:var(--ok); border-color:#274a3a;}
+  .pill-warn{background:var(--warn-bg); color:var(--warn); border-color:#5a4419;}
+  .pill-danger{background:var(--danger-bg); color:var(--danger); border-color:#5c2323;}
+  .degbar{width:70px; height:6px; border-radius:99px; background:#1c2130; overflow:hidden;}
+  .degfill{height:100%; width:0%; background:var(--ok); transition:width .4s linear, background .4s linear;}
+  .actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+  .scroll-area{
+    overflow-y:auto;
+    padding:18px 20px 40px;
+    flex:1;
+    min-height:0;
+  }
+  .block{margin-bottom:22px;}
+  .block-title{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.04em;
+    color:var(--muted);
+    margin:0 0 10px;
+  }
+
+  /* ---- process flow ---- */
+  .flow{
+    display:flex;
+    align-items:stretch;
+    gap:0;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+    overflow-x:auto;
+  }
+  .flow-stage{
+    flex:1 0 130px;
+    background:var(--panel-2);
+    border-left:3px solid var(--ok);
+    border-radius:6px;
+    padding:10px 12px;
+    min-width:130px;
+    transition:border-color .4s ease;
+  }
+  .flow-stage.warn{border-left-color:var(--warn);}
+  .flow-stage.danger{border-left-color:var(--danger);}
+  .flow-label{font-size:10px; letter-spacing:.04em; color:var(--muted); margin-bottom:2px;}
+  .flow-name{font-size:13px; font-weight:600; margin-bottom:6px;}
+  .flow-value{font-family:var(--mono); font-size:19px; font-weight:700; color:var(--ok); transition:color .4s ease;}
+  .flow-value.warn{color:var(--warn);}
+  .flow-value.danger{color:var(--danger);}
+  .flow-value .unit{font-size:11px; font-weight:500; color:var(--muted); margin-left:2px;}
+  .flow-connector{
+    flex:0 0 30px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+  }
+  .flow-connector::before{
+    content:"";
+    position:absolute;
+    left:0; right:0; top:50%;
+    height:2px;
+    background:var(--border);
+    transform:translateY(-50%);
+  }
+  .flow-connector .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--ok);
+    position:relative; z-index:1;
+    transition:background .4s ease;
+  }
+  .flow-connector.warn .dot, .flow-connector.warn::before{background:var(--warn);}
+  .flow-connector.danger .dot, .flow-connector.danger::before{background:var(--danger);}
+
+  /* ---- trace ---- */
+  .trace-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 16px;
+  }
+  .trace-row{display:flex; align-items:center; gap:12px; padding:6px 0;}
+  .trace-label{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text);
+    flex:0 0 210px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .trace-track{flex:1; height:16px; background:#1a1f2b; border-radius:4px; overflow:hidden; position:relative;}
+  .trace-bar{
+    position:absolute; top:0; left:0; height:100%;
+    border-radius:4px;
+    transition:width .5s ease, left .5s ease, background .4s ease;
+  }
+  .trace-ms{font-family:var(--mono); font-size:12px; color:var(--muted); flex:0 0 64px; text-align:right;}
+
+  /* ---- metric cards ---- */
+  .cards-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px;}
+  .metric-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-left:3px solid var(--ok);
+    border-radius:8px;
+    padding:14px 16px 10px;
+    transition:border-left-color .4s ease;
+  }
+  .metric-card.warn{border-left-color:var(--warn);}
+  .metric-card.danger{border-left-color:var(--danger);}
+  .metric-name{font-size:12.5px; color:var(--muted); margin-bottom:6px;}
+  .metric-value{font-family:var(--mono); font-size:24px; font-weight:700; color:var(--ok);}
+  .metric-value.warn{color:var(--warn);}
+  .metric-value.danger{color:var(--danger);}
+  .metric-value .unit{font-size:12px; font-weight:500; color:var(--muted); margin-left:3px;}
+  .metric-baseline{font-size:11px; color:var(--muted); margin:2px 0 8px;}
+  .spark{display:block; width:100%; height:34px;}
+
+  /* ---- logs ---- */
+  .log-panel{
+    background:#0d1017;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:10px 14px;
+    height:150px;
+    overflow-y:auto;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:#9aa4b2;
+  }
+  .log-line{white-space:pre-wrap; padding:1px 0;}
+  .log-line.warn{color:var(--warn);}
+  .log-line.error{color:var(--danger);}
+
+  /* ---- agent chat ---- */
+  .chat{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 20px;
+    min-height:0;
+  }
+  .chat-msg{margin-bottom:18px;}
+  .chat-who{
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.05em;
+    color:var(--muted);
+    margin-bottom:4px;
+  }
+  .chat-msg.you .chat-who{color:var(--info);}
+  .chat-body{font-size:13.5px; line-height:1.6;}
+  .chat-body p{margin:0 0 8px;}
+  .chat-body ul{margin:4px 0 8px; padding-left:18px;}
+  .chat-body code{font-family:var(--mono); background:#1a1f2b; padding:1px 5px; border-radius:4px; font-size:12px;}
+
+  .findings-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin:8px 0 14px;
+  }
+  .findings-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .findings-title{font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted);}
+  .conf-badge{font-size:10.5px; font-weight:700; letter-spacing:.03em; padding:3px 9px; border-radius:999px; background:var(--ok-bg); color:var(--ok); border:1px solid #274a3a;}
+  .conf-badge.mid{background:var(--warn-bg); color:var(--warn); border-color:#5a4419;}
+  .fc-label{font-size:10.5px; font-weight:700; letter-spacing:.04em; color:var(--muted); margin:12px 0 5px;}
+  .fc-label:first-of-type{margin-top:0;}
+  .fc-text{font-size:13.5px; line-height:1.6;}
+  .fc-evidence{margin:0; padding-left:18px; font-size:13px; line-height:1.7;}
+  .fc-evidence code{font-family:var(--mono); font-size:12px; background:#1a1f2b; padding:1px 5px; border-radius:4px;}
+
+  .approval-card{
+    background:var(--warn-bg);
+    border:1px solid #5a4419;
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin:8px 0 14px;
+  }
+  .approval-card .fc-label{color:#e0b969;}
+  .approval-actions{display:flex; gap:10px; margin-top:12px;}
+
+  .report-table{width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;}
+  .report-table th{
+    text-align:left; font-size:10.5px; letter-spacing:.04em; color:var(--muted);
+    font-weight:700; padding:4px 8px; border-bottom:1px solid var(--border);
+  }
+  .report-table td{padding:6px 8px; border-bottom:1px solid #1a1f2b; font-family:var(--mono);}
+  .report-table td.before{color:var(--danger);}
+  .report-table td.after{color:var(--ok);}
+
+  .chat-input-row{
+    display:flex; gap:8px;
+    padding:14px 20px;
+    border-top:1px solid var(--border);
+  }
+  .chat-input-row input{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:9px 12px;
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:13.5px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div><strong>Factory Guardian — interactive walkthrough.</strong> Runs the same causal simulation as the real system; the agent's investigation here is scripted for a reliable demo, not a live Gemini/Grafana call.</div>
+  <a class="src-link" href="#" id="repoLink" target="_blank" rel="noopener">View source & full write-up ↗</a>
+</div>
+
+<div class="layout">
+
+  <!-- ============ LEFT: FACTORY ============ -->
+  <section class="pane pane-factory">
+    <header class="pane-header">
+      <div>
+        <h1>Production Line <span class="sep">/</span> LINE-01</h1>
+      </div>
+      <div class="status-group">
+        <span id="statusPill" class="pill pill-ok">HEALTHY</span>
+        <div class="degbar"><div id="degFill" class="degfill"></div></div>
+        <span id="alertPill" class="pill pill-ok">ALERT: NORMAL</span>
+      </div>
+      <div class="actions">
+        <button id="btnTrigger">Trigger incident</button>
+        <button id="btnRemediate">Remediate</button>
+      </div>
+    </header>
+
+    <div class="scroll-area">
+
+      <div class="block">
+        <div class="block-title">PROCESS FLOW</div>
+        <div class="flow" id="flow"><!-- built by JS --></div>
+      </div>
+
+      <div class="block">
+        <div class="block-title">LATEST REQUEST TRACE &nbsp;·&nbsp; tempo · POST /api/production/status</div>
+        <div class="trace-card">
+          <div class="trace-row">
+            <span class="trace-label">POST /api/production/status</span>
+            <div class="trace-track"><div id="traceRoot" class="trace-bar" style="background:var(--ok);"></div></div>
+            <span id="traceRootMs" class="trace-ms">—</span>
+          </div>
+          <div class="trace-row">
+            <span class="trace-label">equipment.process_unit</span>
+            <div class="trace-track"><div id="traceEq" class="trace-bar" style="background:var(--info);"></div></div>
+            <span id="traceEqMs" class="trace-ms">—</span>
+          </div>
+          <div class="trace-row">
+            <span class="trace-label">db.query production_orders</span>
+            <div class="trace-track"><div id="traceDb" class="trace-bar" style="background:var(--info);"></div></div>
+            <span id="traceDbMs" class="trace-ms">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-title">EQUIPMENT</div>
+        <div class="cards-grid">
+          <div class="metric-card" id="card-temp"></div>
+          <div class="metric-card" id="card-vibration"></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-title">PRODUCTION LINE</div>
+        <div class="cards-grid">
+          <div class="metric-card" id="card-cycle"></div>
+          <div class="metric-card" id="card-throughput"></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-title">APPLICATION & DATABASE</div>
+        <div class="cards-grid">
+          <div class="metric-card" id="card-latency"></div>
+          <div class="metric-card" id="card-errRate"></div>
+          <div class="metric-card" id="card-pool"></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-title">LINE LOGS &nbsp;·&nbsp; production-control-system</div>
+        <div class="log-panel" id="logPanel"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ RIGHT: AGENT ============ -->
+  <section class="pane pane-agent">
+    <header class="pane-header">
+      <div>
+        <h1>Factory Guardian <span class="sep">/</span> investigation agent</h1>
+      </div>
+      <div class="actions">
+        <button id="btnReset">Reset</button>
+        <button id="btnInvestigate">Investigate</button>
+        <button id="btnInvestigateFix" class="primary">Investigate + Fix</button>
+      </div>
+    </header>
+
+    <div class="chat" id="chat">
+      <div class="chat-msg">
+        <div class="chat-who">FACTORY GUARDIAN</div>
+        <div class="chat-body">
+          <p>Trigger an incident on the left, then <strong>Investigate</strong> or <strong>Investigate + Fix</strong> — I'll query metrics, logs and traces, find the root cause, and (if asked) propose a fix for your approval before verifying recovery.</p>
+          <p>You can also ask me things directly below — try "what's the current db pool?" or "list your data sources."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-row">
+      <input id="chatInput" type="text" placeholder="Ask the agent…" />
+      <button id="chatSend">Send</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------
+  // Config — edit these for your own deployment
+  // ---------------------------------------------------------------
+  const CONFIG = {
+    repoUrl: "#", // TODO: point this at your GitHub repo / Devpost page
+    tickMs: 650,
+    rampUpPerTick: 0.05,
+    rampDownPerTick: 0.09,
+    historyLen: 40,
+  };
+  document.getElementById("repoLink").href = CONFIG.repoUrl;
+
+  // ---------------------------------------------------------------
+  // Metric definitions
+  // ---------------------------------------------------------------
+  const METRICS = {
+    temp:       { label:"Motor temperature",   unit:"°C",  baseline:65,  warn:82,  danger:92,  digits:1, promName:"equipment_motor_temperature_celsius" },
+    vibration:  { label:"Drive vibration",     unit:"mm/s",baseline:0.2, warn:1.0, danger:1.5, digits:2, promName:"equipment_vibration_mm_per_second" },
+    cycle:      { label:"Unit cycle time",     unit:"ms",  baseline:120, warn:400, danger:700, digits:0, promName:"production_processing_time_ms" },
+    throughput: { label:"Throughput",          unit:"/hr", baseline:980, warn:800, danger:650, digits:0, promName:"production_output_units_per_hour", inverse:true },
+    latency:    { label:"API latency",         unit:"ms",  baseline:200, warn:2000,danger:5000,digits:0, promName:"api_latency_milliseconds" },
+    errRate:    { label:"API error rate",      unit:"%",   baseline:0.2, warn:5,   danger:10,  digits:2, promName:"api_error_rate_percent" },
+    pool:       { label:"DB pool in use",      unit:"%",   baseline:40,  warn:80,  danger:92,  digits:1, promName:"database_connection_pool_percent" },
+  };
+  const SPARK_KEYS = ["temp","vibration","cycle","throughput","latency","errRate","pool"];
+
+  // ---------------------------------------------------------------
+  // Factory model — same derivation as the real simulator.py
+  // ---------------------------------------------------------------
+  const factory = {
+    incident:false,
+    degradation:0,
+    readings:{},
+    history:{},
+  };
+  SPARK_KEYS.forEach(k => factory.history[k] = []);
+
+  function jitter(v, pct){ pct = pct===undefined?0.03:pct; return v * (1 + (Math.random()*2-1)*pct); }
+
+  function derive(d){
+    const temp = jitter(65 + 30*d);
+    const vibration = jitter(0.2 + 1.6*d);
+    const cycle = jitter(120 + 950*d);
+    const throughput = jitter(980 - 390*d);
+    const retry = Math.max(0, (cycle - 300) / 1000);
+    const pool = Math.min(99, 40 + 75*retry);
+    const sat = Math.max(0, (pool - 80) / 20);
+    const latency = 200 + 400*retry + 7800*sat*sat;
+    const errRate = Math.max(0, jitter(0.2 + 18*sat*sat));
+    return { temp, vibration, cycle, throughput, pool, latency, errRate };
+  }
+
+  function severity(key, value){
+    const m = METRICS[key];
+    if (m.inverse){
+      if (value <= m.danger) return "danger";
+      if (value <= m.warn) return "warn";
+      return "ok";
+    }
+    if (value >= m.danger) return "danger";
+    if (value >= m.warn) return "warn";
+    return "ok";
+  }
+
+  function fmt(key, value){
+    return value.toFixed(METRICS[key].digits);
+  }
+
+  function worstOf(a,b){
+    const rank = {ok:0, warn:1, danger:2};
+    return rank[a] >= rank[b] ? a : b;
+  }
+
+  // ---------------------------------------------------------------
+  // Rendering — telemetry panels
+  // ---------------------------------------------------------------
+  const el = {
+    statusPill: document.getElementById("statusPill"),
+    alertPill: document.getElementById("alertPill"),
+    degFill: document.getElementById("degFill"),
+    flow: document.getElementById("flow"),
+    logPanel: document.getElementById("logPanel"),
+    chat: document.getElementById("chat"),
+  };
+
+  const FLOW_STAGES = [
+    { key:"temp",       group:"EQUIPMENT", name:"Drive motor" },
+    { key:"cycle",      group:"LINE",      name:"Processing" },
+    { key:"pool",       group:"DATABASE",  name:"DB pool" },
+    { key:"latency",    group:"SERVICE",   name:"API" },
+    { key:"throughput", group:"THROUGHPUT",name:"Output" },
+  ];
+
+  function buildFlowDom(){
+    el.flow.innerHTML = "";
+    FLOW_STAGES.forEach((stage, i) => {
+      const card = document.createElement("div");
+      card.className = "flow-stage";
+      card.id = "flow-" + stage.key;
+      card.innerHTML =
+        '<div class="flow-label">'+stage.group+'</div>' +
+        '<div class="flow-name">'+stage.name+'</div>' +
+        '<div class="flow-value" id="flow-val-'+stage.key+'">—</div>';
+      el.flow.appendChild(card);
+      if (i < FLOW_STAGES.length - 1){
+        const conn = document.createElement("div");
+        conn.className = "flow-connector";
+        conn.id = "flow-conn-" + i;
+        conn.innerHTML = '<div class="dot"></div>';
+        el.flow.appendChild(conn);
+      }
+    });
+  }
+
+  function buildMetricCardDom(key){
+    const m = METRICS[key];
+    const card = document.getElementById("card-" + key);
+    card.innerHTML =
+      '<div class="metric-name">'+m.label+'</div>' +
+      '<div class="metric-value" id="val-'+key+'">— <span class="unit">'+m.unit+'</span></div>' +
+      '<div class="metric-baseline">baseline '+m.baseline+'</div>' +
+      '<svg class="spark" id="spark-'+key+'" viewBox="0 0 100 30" preserveAspectRatio="none">' +
+        '<polyline fill="none" stroke="var(--ok)" stroke-width="1.5" points=""></polyline>' +
+      '</svg>';
+  }
+
+  function renderSpark(key){
+    const hist = factory.history[key];
+    if (hist.length < 2) return;
+    const svg = document.getElementById("spark-" + key);
+    const poly = svg.querySelector("polyline");
+    const min = Math.min.apply(null, hist), max = Math.max.apply(null, hist);
+    const range = (max - min) || 1;
+    const step = 100 / (CONFIG.historyLen - 1);
+    const pts = hist.map((v,i) => {
+      const x = i * step;
+      const y = 28 - ((v - min) / range) * 26;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    poly.setAttribute("points", pts);
+    const sev = severity(key, hist[hist.length-1]);
+    poly.setAttribute("stroke", sev === "danger" ? "var(--danger)" : sev === "warn" ? "var(--warn)" : "var(--ok)");
+  }
+
+  function renderAll(){
+    const r = factory.readings;
+
+    // status pills
+    const degPct = Math.round(factory.degradation * 100);
+    el.degFill.style.width = degPct + "%";
+    el.degFill.style.background = factory.degradation > 0.6 ? "var(--danger)" : factory.degradation > 0.2 ? "var(--warn)" : "var(--ok)";
+
+    const latSev = severity("latency", r.latency);
+    if (latSev === "danger"){
+      el.statusPill.textContent = "DEGRADED"; el.statusPill.className = "pill pill-danger";
+      el.alertPill.textContent = "ALERT: FIRING"; el.alertPill.className = "pill pill-danger";
+    } else if (latSev === "warn" || factory.degradation > 0.15){
+      el.statusPill.textContent = "DEGRADING"; el.statusPill.className = "pill pill-warn";
+      el.alertPill.textContent = "ALERT: PENDING"; el.alertPill.className = "pill pill-warn";
+    } else {
+      el.statusPill.textContent = "HEALTHY"; el.statusPill.className = "pill pill-ok";
+      el.alertPill.textContent = "ALERT: NORMAL"; el.alertPill.className = "pill pill-ok";
+    }
+
+    // process flow
+    let prevSev = "ok";
+    FLOW_STAGES.forEach((stage, i) => {
+      const val = r[stage.key];
+      const sev = severity(stage.key, val);
+      const card = document.getElementById("flow-" + stage.key);
+      card.className = "flow-stage" + (sev !== "ok" ? " " + sev : "");
+      const valEl = document.getElementById("flow-val-" + stage.key);
+      valEl.className = "flow-value" + (sev !== "ok" ? " " + sev : "");
+      valEl.innerHTML = fmt(stage.key, val) + ' <span class="unit">' + METRICS[stage.key].unit + "</span>";
+      if (i > 0){
+        const connSev = worstOf(prevSev, sev);
+        const conn = document.getElementById("flow-conn-" + (i-1));
+        conn.className = "flow-connector" + (connSev !== "ok" ? " " + connSev : "");
+      }
+      prevSev = sev;
+    });
+
+    // trace
+    const scale = 8000;
+    const totalMs = r.latency;
+    const eqMs = r.cycle;
+    const dbMs = Math.max(5, totalMs - eqMs - 20);
+    document.getElementById("traceRoot").style.width = Math.min(100, totalMs/scale*100) + "%";
+    document.getElementById("traceRoot").style.background = severity("latency", totalMs) === "danger" ? "var(--danger)" : "var(--ok)";
+    document.getElementById("traceRootMs").textContent = Math.round(totalMs) + " ms";
+
+    const eqPct = Math.min(100, eqMs/scale*100);
+    document.getElementById("traceEq").style.width = eqPct + "%";
+    document.getElementById("traceEqMs").textContent = Math.round(eqMs) + " ms";
+
+    const dbPct = Math.min(100, dbMs/scale*100);
+    const dbEl = document.getElementById("traceDb");
+    dbEl.style.left = eqPct + "%";
+    dbEl.style.width = dbPct + "%";
+    dbEl.style.background = severity("pool", r.pool) === "danger" ? "var(--danger)" : "var(--info)";
+    document.getElementById("traceDbMs").textContent = Math.round(dbMs) + " ms";
+
+    // metric cards
+    Object.keys(METRICS).forEach(key => {
+      const val = r[key];
+      const sev = severity(key, val);
+      const card = document.getElementById("card-" + key);
+      card.className = "metric-card" + (sev !== "ok" ? " " + sev : "");
+      const valEl = document.getElementById("val-" + key);
+      valEl.className = "metric-value" + (sev !== "ok" ? " " + sev : "");
+      valEl.innerHTML = fmt(key, val) + ' <span class="unit">' + METRICS[key].unit + "</span>";
+      renderSpark(key);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Logs
+  // ---------------------------------------------------------------
+  let logCooldown = {};
+  function pushLog(level, text){
+    const line = document.createElement("div");
+    line.className = "log-line" + (level !== "info" ? " " + level : "");
+    const t = new Date();
+    const ts = String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0")+":"+String(t.getSeconds()).padStart(2,"0");
+    line.textContent = ts + "  " + text;
+    el.logPanel.appendChild(line);
+    el.logPanel.scrollTop = el.logPanel.scrollHeight;
+    while (el.logPanel.children.length > 60) el.logPanel.removeChild(el.logPanel.firstChild);
+  }
+
+  function maybeLog(){
+    const r = factory.readings;
+    pushLog("info", "health: LINE-01 output=" + Math.round(r.throughput) + "/hr latency=" + Math.round(r.latency) +
+      "ms pool=" + Math.round(r.pool) + "% temp=" + r.temp.toFixed(1) + "°C errors=" + r.errRate.toFixed(2) + "%");
+
+    const now = Date.now();
+    if (r.temp > 85 && (!logCooldown.temp || now - logCooldown.temp > 2500)){
+      pushLog("warn", "Equipment LINE-01 motor temperature " + r.temp.toFixed(1) + "°C exceeds threshold 85°C");
+      logCooldown.temp = now;
+    }
+    if (r.pool > 85 && (!logCooldown.pool || now - logCooldown.pool > 2500)){
+      pushLog("warn", "Database connection pool nearing capacity: " + r.pool.toFixed(1) + "% in use");
+      logCooldown.pool = now;
+    }
+    if (r.pool > 95 && (!logCooldown.timeout || now - logCooldown.timeout > 2500)){
+      pushLog("error", "Connection acquisition timeout after 5000ms; pool exhausted at " + r.pool.toFixed(1) + "%");
+      logCooldown.timeout = now;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Tick loop
+  // ---------------------------------------------------------------
+  function tick(){
+    const target = factory.incident ? 1 : 0;
+    if (factory.degradation < target){
+      factory.degradation = Math.min(target, factory.degradation + CONFIG.rampUpPerTick);
+    } else if (factory.degradation > target){
+      factory.degradation = Math.max(target, factory.degradation - CONFIG.rampDownPerTick);
+    }
+    factory.readings = derive(factory.degradation);
+    SPARK_KEYS.forEach(k => {
+      const h = factory.history[k];
+      h.push(factory.readings[k]);
+      if (h.length > CONFIG.historyLen) h.shift();
+    });
+    renderAll();
+    maybeLog();
+  }
+
+  function initDom(){
+    buildFlowDom();
+    Object.keys(METRICS).forEach(buildMetricCardDom);
+  }
+
+  // ---------------------------------------------------------------
+  // Chat helpers
+  // ---------------------------------------------------------------
+  function escapeHtml(s){
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function appendChat(who, html, extraClass){
+    const wrap = document.createElement("div");
+    wrap.className = "chat-msg" + (extraClass ? " " + extraClass : "");
+    wrap.innerHTML = '<div class="chat-who">' + who + '</div><div class="chat-body">' + html + "</div>";
+    el.chat.appendChild(wrap);
+    el.chat.scrollTop = el.chat.scrollHeight;
+    return wrap;
+  }
+
+  function delay(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  async function appendAgentStep(html, ms){
+    await delay(ms===undefined?700:ms);
+    appendChat("AGENT", html);
+  }
+
+  // ---------------------------------------------------------------
+  // Investigation flow
+  // ---------------------------------------------------------------
+  let investigating = false;
+
+  function setButtonsDisabled(disabled){
+    document.getElementById("btnInvestigate").disabled = disabled;
+    document.getElementById("btnInvestigateFix").disabled = disabled;
+  }
+
+  function snapshot(){
+    const r = factory.readings;
+    return { temp:r.temp, vibration:r.vibration, cycle:r.cycle, throughput:r.throughput, latency:r.latency, errRate:r.errRate, pool:r.pool };
+  }
+
+  function evidenceList(snap){
+    return (
+      '<ul class="fc-evidence">' +
+      '<li><code>' + METRICS.temp.promName + '</code> rose from ' + METRICS.temp.baseline + '°C baseline to ' + snap.temp.toFixed(1) + '°C</li>' +
+      '<li><code>' + METRICS.cycle.promName + '</code> rose from ' + METRICS.cycle.baseline + 'ms baseline to ' + Math.round(snap.cycle) + 'ms</li>' +
+      '<li><code>' + METRICS.pool.promName + '</code> rose from ' + METRICS.pool.baseline + '% baseline to ' + snap.pool.toFixed(1) + '%</li>' +
+      '<li><code>' + METRICS.latency.promName + '</code> rose from ' + METRICS.latency.baseline + 'ms baseline to ' + Math.round(snap.latency) + 'ms (alert threshold 5,000ms)</li>' +
+      '</ul>'
+    );
+  }
+
+  function confidenceFor(snap){
+    return Math.min(96, Math.round(58 + (Math.min(snap.pool, 99) / 99) * 36));
+  }
+
+  function renderFindings(snap, showFixButton){
+    const conf = confidenceFor(snap);
+    const confClass = conf >= 85 ? "" : "mid";
+    const card = document.createElement("div");
+    card.className = "findings-card";
+    card.innerHTML =
+      '<div class="findings-head"><div class="findings-title">FINDINGS</div>' +
+      '<div class="conf-badge ' + confClass + '">' + (conf >= 85 ? "HIGH" : "MODERATE") + ' CONFIDENCE · ' + conf + '%</div></div>' +
+      '<div class="fc-label">ROOT CAUSE</div>' +
+      '<div class="fc-text">Equipment degradation on LINE-01 is producing a coordinated shift across every downstream signal. Motor temperature, unit processing time, database pool utilization, and API latency all moved together — consistent with a single upstream cause on the equipment layer rather than an independent database or application fault.</div>' +
+      '<div class="fc-label">EVIDENCE</div>' +
+      evidenceList(snap) +
+      (showFixButton ? '<button class="primary" id="btnProposeFix" style="margin-top:6px;">Propose a fix →</button>' : "");
+    el.chat.appendChild(card);
+    el.chat.scrollTop = el.chat.scrollHeight;
+    return card;
+  }
+
+  function renderApprovalCard(){
+    return new Promise(resolve => {
+      const card = document.createElement("div");
+      card.className = "approval-card";
+      card.innerHTML =
+        '<div class="fc-label">REMEDIATION PROPOSAL</div>' +
+        '<div class="fc-text"><strong>Action:</strong> Restart processing service on LINE-01<br>' +
+        '<strong>Risk:</strong> Medium &nbsp;·&nbsp; <strong>Expected impact:</strong> ~10–15s of reduced throughput<br>' +
+        '<strong>Reason:</strong> Clears the retry storm causing database connection pool saturation.</div>' +
+        '<div class="approval-actions">' +
+        '<button class="approve" id="btnApprove">Approve</button>' +
+        '<button class="reject" id="btnReject">Reject</button>' +
+        "</div>";
+      el.chat.appendChild(card);
+      el.chat.scrollTop = el.chat.scrollHeight;
+      document.getElementById("btnApprove").onclick = () => {
+        card.querySelector(".approval-actions").innerHTML = '<span style="color:var(--ok); font-size:12.5px; font-weight:600;">✓ Approved</span>';
+        resolve(true);
+      };
+      document.getElementById("btnReject").onclick = () => {
+        card.querySelector(".approval-actions").innerHTML = '<span style="color:var(--danger); font-size:12.5px; font-weight:600;">✕ Rejected</span>';
+        resolve(false);
+      };
+    });
+  }
+
+  function waitForRecovery(){
+    return new Promise(resolve => {
+      const check = () => {
+        if (factory.degradation <= 0.04){ resolve(); return; }
+        setTimeout(check, CONFIG.tickMs);
+      };
+      check();
+    });
+  }
+
+  function renderReport(before, after){
+    const rows = [
+      ["Throughput", before.throughput.toFixed(0)+" /hr", after.throughput.toFixed(0)+" /hr"],
+      ["DB pool in use", before.pool.toFixed(1)+"%", after.pool.toFixed(1)+"%"],
+      ["API latency", Math.round(before.latency)+" ms", Math.round(after.latency)+" ms"],
+      ["Motor temperature", before.temp.toFixed(1)+"°C", after.temp.toFixed(1)+"°C"],
+      ["API error rate", before.errRate.toFixed(2)+"%", after.errRate.toFixed(2)+"%"],
+    ];
+    const trs = rows.map(r => "<tr><td>"+r[0]+"</td><td class=\"before\">"+r[1]+"</td><td class=\"after\">"+r[2]+"</td></tr>").join("");
+    const card = document.createElement("div");
+    card.className = "findings-card";
+    card.innerHTML =
+      '<div class="findings-head"><div class="findings-title">RECOVERY VERIFIED</div>' +
+      '<div class="conf-badge">RESOLVED</div></div>' +
+      '<div class="fc-text">Remediation executed and telemetry re-queried. LINE-01 has returned to baseline operating conditions.</div>' +
+      '<table class="report-table"><thead><tr><th>METRIC</th><th>INCIDENT</th><th>NOW</th></tr></thead><tbody>' + trs + "</tbody></table>";
+    el.chat.appendChild(card);
+    el.chat.scrollTop = el.chat.scrollHeight;
+  }
+
+  async function runInvestigation(withFix){
+    if (investigating) return;
+    investigating = true;
+    setButtonsDisabled(true);
+
+    appendChat("YOU", withFix ? "Investigate the firing alert and propose + execute a fix." : "Investigate the firing alert.", "you");
+
+    const wasFiring = severity("latency", factory.readings.latency) === "danger" || factory.degradation > 0.1;
+    if (!wasFiring){
+      await appendAgentStep("<p>No alert is currently firing — <code>api_latency_milliseconds</code> is at " + Math.round(factory.readings.latency) + "ms, within the healthy range. Trigger an incident on the left to see a real investigation.</p>", 500);
+      investigating = false;
+      setButtonsDisabled(false);
+      return;
+    }
+
+    const snap = snapshot();
+
+    await appendAgentStep("<p>Reading alert rule <code>api-latency-line01</code> — threshold 5,000ms. State: <strong>FIRING</strong> at " + Math.round(snap.latency) + "ms.</p>", 600);
+    await appendAgentStep("<p>Querying Mimir across the stack in one pass to find which signal moved first: motor temperature at " + snap.temp.toFixed(1) + "°C (baseline 65°C), processing time at " + Math.round(snap.cycle) + "ms (baseline 120ms), DB pool at " + snap.pool.toFixed(1) + "% (baseline 40%).</p>", 1100);
+    await appendAgentStep("<p>Checking Loki for corroborating log lines… found <code>Database connection pool nearing capacity</code> and <code>Connection acquisition timeout</code> entries aligned with the pool saturation window.</p>", 1000);
+    await appendAgentStep("<p>Pulling the latest trace from Tempo — <code>db.query production_orders</code> is consuming the majority of the request span, consistent with pool contention rather than a slow upstream call.</p>", 1000);
+
+    const showFixBtn = !withFix;
+    renderFindings(snap, showFixBtn);
+
+    if (showFixBtn){
+      await delay(200);
+      document.getElementById("btnProposeFix").onclick = async () => {
+        document.getElementById("btnProposeFix").remove();
+        await executeFix(snap);
+      };
+      investigating = false;
+      setButtonsDisabled(false);
+      return;
+    }
+
+    await executeFix(snap);
+  }
+
+  async function executeFix(before){
+    await appendAgentStep('<p>Based on the findings above, I recommend restarting the processing service. Waiting for approval before taking any action.</p>', 500);
+    const approved = await renderApprovalCard();
+
+    if (!approved){
+      await appendAgentStep("<p>Remediation not approved — no action taken. The incident remains active.</p>", 400);
+      investigating = false;
+      setButtonsDisabled(false);
+      return;
+    }
+
+    document.getElementById("btnRemediate").disabled = true;
+    document.getElementById("btnTrigger").disabled = true;
+    await appendAgentStep("<p>Executing remediation: <code>restart_processing_service</code>…</p>", 400);
+    factory.incident = false;
+    await waitForRecovery();
+    const after = snapshot();
+    await appendAgentStep("<p>Re-querying Grafana to verify recovery rather than assuming it worked.</p>", 600);
+    renderReport(before, after);
+    document.getElementById("btnRemediate").disabled = false;
+    document.getElementById("btnTrigger").disabled = false;
+
+    investigating = false;
+    setButtonsDisabled(false);
+  }
+
+  // ---------------------------------------------------------------
+  // Direct Q&A (Mode A) — quick answers, no full investigation
+  // ---------------------------------------------------------------
+  function handleDirectQuestion(qRaw){
+    const q = qRaw.toLowerCase();
+    const r = factory.readings;
+
+    if (/data ?source/.test(q)){
+      return "<p>Three data sources are available on this stack:</p><ul>" +
+        "<li><code>grafanacloud-prod-prom</code> — metrics (PromQL)</li>" +
+        "<li><code>grafanacloud-prod-logs</code> — logs (LogQL)</li>" +
+        "<li><code>grafanacloud-prod-traces</code> — traces (TraceQL)</li></ul>";
+    }
+    if (/latency/.test(q)){
+      return "<p>Current <code>api_latency_milliseconds</code> is " + Math.round(r.latency) + "ms (baseline 200ms, alert threshold 5,000ms).</p>";
+    }
+    if (/pool/.test(q)){
+      return "<p>Current <code>database_connection_pool_percent</code> is " + r.pool.toFixed(1) + "% (baseline 40%).</p>";
+    }
+    if (/temp/.test(q)){
+      return "<p>Current <code>equipment_motor_temperature_celsius</code> is " + r.temp.toFixed(1) + "°C (baseline 65°C).</p>";
+    }
+    if (/throughput|output/.test(q)){
+      return "<p>Current <code>production_output_units_per_hour</code> is " + Math.round(r.throughput) + "/hr (baseline 980/hr).</p>";
+    }
+    if (/error/.test(q)){
+      return "<p>Current <code>api_error_rate_percent</code> is " + r.errRate.toFixed(2) + "% (baseline 0.2%).</p>";
+    }
+    if (/investigat|root cause|diagnos|incident|fix|wrong/.test(q)){
+      runInvestigation(/fix/.test(q));
+      return null;
+    }
+    return "<p>I can answer direct questions about current metrics, or run a full investigation — try the <strong>Investigate</strong> button, or ask about latency, DB pool, temperature, throughput, or error rate.</p>";
+  }
+
+  // ---------------------------------------------------------------
+  // Wire up controls
+  // ---------------------------------------------------------------
+  document.getElementById("btnTrigger").onclick = () => {
+    factory.incident = true;
+    pushLog("warn", "Incident triggered on production line LINE-01");
+  };
+  document.getElementById("btnRemediate").onclick = () => {
+    factory.incident = false;
+    pushLog("info", "Remediation executed: restart_processing_service (manual)");
+  };
+  document.getElementById("btnInvestigate").onclick = () => runInvestigation(false);
+  document.getElementById("btnInvestigateFix").onclick = () => runInvestigation(true);
+  document.getElementById("btnReset").onclick = () => {
+    factory.incident = false;
+    factory.degradation = 0;
+    SPARK_KEYS.forEach(k => factory.history[k] = []);
+    logCooldown = {};
+    el.logPanel.innerHTML = "";
+    el.chat.innerHTML =
+      '<div class="chat-msg"><div class="chat-who">FACTORY GUARDIAN</div><div class="chat-body">' +
+      '<p>Reset. Trigger an incident on the left, then Investigate or Investigate + Fix.</p></div></div>';
+    investigating = false;
+    setButtonsDisabled(false);
+    document.getElementById("btnRemediate").disabled = false;
+    document.getElementById("btnTrigger").disabled = false;
+  };
+
+  const input = document.getElementById("chatInput");
+  const send = document.getElementById("chatSend");
+  function submitQuestion(){
+    const val = input.value.trim();
+    if (!val) return;
+    appendChat("YOU", escapeHtml(val), "you");
+    input.value = "";
+    const reply = handleDirectQuestion(val);
+    if (reply) appendChat("AGENT", reply);
+  }
+  send.onclick = submitQuestion;
+  input.addEventListener("keydown", e => { if (e.key === "Enter") submitQuestion(); });
+
+  // ---------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------
+  initDom();
+  factory.readings = derive(0);
+  SPARK_KEYS.forEach(k => { for (let i=0;i<5;i++) factory.history[k].push(factory.readings[k]); });
+  renderAll();
+  setInterval(tick, CONFIG.tickMs);
+
+})();
+</script>
+</body>
+</html>
